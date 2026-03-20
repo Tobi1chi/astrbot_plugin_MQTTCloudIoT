@@ -1,0 +1,32 @@
+{
+  "hostname": {
+    "description": "MQTT服务器地址",
+    "type": "string",
+    "hint": "输入你的MQTT服务器地址",
+    "default": ""
+  },
+  "port": {
+    "description": "MQTT端口号",
+    "type": "int",
+    "hint": "输入你的MQTT端口号",
+    "default": 1883
+  },
+  "client_id": {
+    "description": "设备客户端ID",
+    "type": "string",
+    "hint": "输入你的设备客户端ID",
+    "default": ""
+  },
+  "password": {
+    "description": "设备密码",
+    "type": "string",
+    "hint": "输入你的设备密码",
+    "default": ""
+  },
+  "username": {
+    "description": "设备用户名",
+    "type": "string",
+    "hint": "输入你的设备用户名",
+    "default": ""
+  }
+}

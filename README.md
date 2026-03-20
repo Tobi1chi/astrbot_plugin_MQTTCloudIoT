@@ -1,14 +1,283 @@
-# astrbot-plugin-helloworld
+# 🌐 AstrBot MQTTCloudIoT 插件
 
-AstrBot 插件模板 / A template plugin for AstrBot plugin feature
+<div align="center">
 
-> [!NOTE]
-> This repo is just a template of [AstrBot](https://github.com/AstrBotDevs/AstrBot) Plugin.
-> 
-> [AstrBot](https://github.com/AstrBotDevs/AstrBot) is an agentic assistant for both personal and group conversations. It can be deployed across dozens of mainstream instant messaging platforms, including QQ, Telegram, Feishu, DingTalk, Slack, LINE, Discord, Matrix, etc. In addition, it provides a reliable and extensible conversational AI infrastructure for individuals, developers, and teams. Whether you need a personal AI companion, an intelligent customer support agent, an automation assistant, or an enterprise knowledge base, AstrBot enables you to quickly build AI applications directly within your existing messaging workflows.
+[![AstrBot](https://img.shields.io/badge/AstrBot-v4.x+-blue.svg)](https://github.com/Soulter/AstrBot)
+[![MQTT](https://img.shields.io/badge/MQTT-v5-green.svg)](https://mqtt.org/)
+[![Platform](https://img.shields.io/badge/Platform-华为云_IoT-orange.svg)](https://www.huaweicloud.com/product/iothub.html)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-# Supports
+**让 AstrBot 变身智能 IoT 设备控制中心！**
 
-- [AstrBot Repo](https://github.com/AstrBotDevs/AstrBot)
-- [AstrBot Plugin Development Docs (Chinese)](https://docs.astrbot.app/dev/star/plugin-new.html)
-- [AstrBot Plugin Development Docs (English)](https://docs.astrbot.app/en/dev/star/plugin-new.html)
+</div>
+
+---
+
+## 📖 插件介绍
+
+该插件为 **AstrBot 机器人** 提供 **MQTT 通信能力**，实现与 **IoT 平台（如华为云 IoT）** 的 **双向数据交互**。
+
+通过该插件，你可以在 **聊天窗口（群聊/私聊）** 中：
+- 🔌 控制 IoT 设备连接状态
+- 📊 上报设备属性（如温度、湿度）
+- 🚨 发送设备事件（告警、状态变更）
+- 📝 自定义 Topic 消息透传
+- 📥 接收并处理 IoT 平台下发的指令
+
+---
+
+## ✨ 功能特性
+
+| 功能 | 状态 | 描述 |
+|------|------|------|
+| **MQTT v5 协议兼容** | ✅ | 支持 IoT 平台标准通信规范 |
+| **设备状态自动上报** | ✅ | 上线/离线状态自动同步（含遗嘱消息） |
+| **自定义属性上报** | ✅ | 手动上报设备属性（温度、湿度等） |
+| **设备事件通知** | ✅ | 发送设备告警、状态变更等事件 |
+| **自定义 Topic 透传** | ✅ | 支持任意 Topic 的消息上传 |
+| **平台指令处理** | ✅ | 接收并响应 IoT 平台下发的命令 |
+| **双向数据交互** | ✅ | 支持设备→平台、平台→设备双向通信 |
+| **完善的日志系统** | ✅ | 文件+控制台双端日志，便于调试 |
+| **生命周期管理** | ✅ | 插件启动/停止时自动清理资源 |
+
+---
+
+## 🚀 快速开始
+
+### 前置依赖
+
+| 依赖项 | 要求 |
+|--------|------|
+| AstrBot 版本 | v4.x 及以上 |
+| Python 库 | `paho-mqtt>=2.0.0` |
+| IoT 平台 | 已注册设备（获取 Client ID、用户名、密码） |
+
+### 安装步骤
+
+1. **安装依赖库**：
+```bash
+pip install paho-mqtt>=2.0.0
+```
+
+2. **放置插件**：
+   将插件代码放入 AstrBot 插件目录（通常为 `plugins/`）
+
+3. **配置 IoT 平台信息**：
+   在 AstrBot 插件配置页面填写以下信息：
+
+| 配置项 | 示例值 | 说明 |
+|--------|--------|------|
+| hostname | `myhuaweicloud.com` | MQTT 服务器地址 |
+| port | `1883` | MQTT 端口（1883=TCP, 8883=TLS） |
+| client_id | `device001_0_0_20240101` | 设备客户端 ID（IoT 平台生成） |
+| username | `device001` | 设备认证用户名 |
+| password | `your_password` | 设备认证密码 |
+
+4. **重启 AstrBot**
+
+---
+
+## 📚 指令大全
+
+### 🔌 连接管理
+
+| 指令 | 用法 | 示例 | 说明 |
+|------|------|------|------|
+| `/iot connect` | `/iot connect` | `/iot connect` | 连接到 IoT 平台 |
+| `/iot disconnect` | `/iot disconnect` | `/iot disconnect` | 断开与 IoT 平台的连接 |
+| `/iot status` | `/iot status` | `/iot status` | 查看当前 MQTT 连接状态 |
+
+### 📊 数据上报
+
+| 指令 | 用法 | 示例 | 说明 |
+|------|------|------|------|
+| `/iot report` | `/iot report <属性类型> <值>` | `/iot report temperature 25` | 上报设备属性 |
+| `/iot event` | `/iot event <事件类型> <消息>` | `/iot event alert 温度过高` | 发送设备事件 |
+
+### 📝 自定义消息
+
+| 指令 | 用法 | 示例 | 说明 |
+|------|------|------|------|
+| `/iot pub` | `/iot pub <topic> <消息>` | `/iot pub astrbot/status 机器人在线` | 发送自定义 Topic 消息 |
+
+---
+
+## 💡 使用示例
+
+### 示例 1：连接 IoT 平台
+```
+用户：/iot connect
+
+机器人：(＾▽＾) 成功连接到 IoT平台
+        ( ﾟ∀ﾟ) 服务器：myhuaweicloud.com:1883
+```
+
+### 示例 2：上报温度数据
+```
+用户：/iot report temperature 26
+
+机器人：(＾▽＾) 已上报属性
+        (⊙_⊙) 类型：temperature
+        (⇀‸↼) 值：26
+```
+
+### 示例 3：发送告警事件
+```
+用户：/iot event alert 检测到异常登录
+
+机器人：(＾▽＾) 已发送事件
+        ( ͡° ͜ʖ ͡°) 类型：alert
+        (´･ω･`) 消息：检测到异常登录
+```
+
+### 示例 4：查看连接状态
+```
+用户：/iot status
+
+机器人：( ﾟ∀ﾟ) IoT平台状态
+         (＾▽＾) 已连接
+        (^_^) 服务器：myhuaweicloud.com:1883
+         (o_O) 设备ID：69ba410bcbb0cf6bb948307f_astr-mqtt
+```
+
+---
+
+## 🔧 核心功能详解
+
+### 1. MQTT 连接管理
+- **自动重连**：异常断开时自动尝试重连
+- **遗嘱消息**：设备异常离线时，平台自动收到离线通知
+- **主题订阅**：连接成功后自动订阅 IoT 平台标准 Topic
+
+### 2. 设备数据上报
+
+#### 属性上报格式（设备→平台）
+```json
+{
+  "services": [
+    {
+      "service_id": "Custom",
+      "properties": {
+        "temperature": 25,
+        "humidity": 60
+      }
+    }
+  ]
+}
+```
+
+#### 事件上报格式（设备→平台）
+```json
+{
+  "events": [
+    {
+      "event_type": "alert",
+      "event_data": {
+        "message": "温度过高"
+      },
+      "timestamp": 1710988800000
+    }
+  ]
+}
+```
+
+### 3. 平台指令处理
+插件支持接收并处理 IoT 平台下发的：
+- **控制指令**：如远程开关、参数调整
+- **属性设置**：平台设置设备属性值
+- **查询请求**：响应平台的设备状态查询
+
+---
+
+## 📋 日志系统
+
+插件配备完善的日志记录功能：
+
+| 日志项 | 配置 |
+|--------|------|
+| 日志文件 | `iot_plugin.log` |
+| 单文件大小 | 5MB |
+| 历史文件 | 保留 3 个 |
+| 编码 | UTF-8 |
+| 输出位置 | 文件 + 控制台 |
+
+**日志格式**：
+```
+[2024-01-15 10:30:00] [INFO] astrbot_plugin_iot: 成功连接到 IoT平台
+[2024-01-15 10:30:01] [INFO] astrbot_plugin_iot: 订阅主题成功：property_up
+```
+
+---
+
+## ❓ 常见问题
+
+**Q: 连接失败，原因码 5？**
+> A: 认证失败，请检查 `Client ID`、`Username`、`Password` 是否与 IoT 平台配置一致。
+
+**Q: 消息发送失败？**
+> A: 请先检查连接状态 `/iot status`，确保已成功连接到 IoT 平台。
+
+**Q: 无法接收平台指令？**
+> A: 请检查 Topic 订阅是否成功，查看日志文件确认。
+
+**Q: 日志文件过大？**
+> A: 插件已配置自动日志轮转，无需手动清理。
+
+---
+
+## 🔄 插件生命周期
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  加载阶段                                                   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ 初始化日志系统 → 注册插件指令 → 等待用户触发连接      │   │
+│  └─────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────┤
+│  运行阶段                                                   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ /iot connect → 建立MQTT连接 → 订阅主题 → 收发消息    │   │
+│  │     ↓                                              │   │
+│  │ 处理平台指令 ← 上报属性/事件 ← 用户指令触发          │   │
+│  └─────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────┤
+│  卸载阶段                                                   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ 断开MQTT连接 → 停止网络循环 → 清理资源              │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📁 文件结构
+
+```
+astrbot_plugin_MQTTCloudIoT/
+├── main.py              # 插件主代码（核心逻辑）
+├── _conf_schema.json     # 配置项定义（AstrBot 管理界面用）
+├── metadata.yaml        # 插件元数据信息
+├── README.md            # 本说明文档
+├── LICENSE              # 许可证文件
+└── iot_plugin.log       # 运行时日志（自动生成）
+```
+
+---
+
+## 🤝 贡献指南
+
+欢迎提交 Issue 和 Pull Request 来改进插件！
+
+---
+
+## 📄 许可证
+
+本插件采用 [MIT](LICENSE) 许可证。
+
+---
+
+<div align="center">
+
+**用 AstrBot 连接万物，让机器人更智能！** 🤖🌐
+
+</div>
