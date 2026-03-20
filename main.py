@@ -5,21 +5,18 @@ from astrbot.core.platform import MessageType
 # 导入指令注册装饰器：用于注册插件指令
 from astrbot.core.star.register import register_command
 # 导入MQTT客户端库：实现与 IoT平台的MQTT通信
-from astrbot.api import AstrBotConfig
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+from astrbot.api import AstrBotConfig, logger
+from astrbot.api.event import AstrMessageEvent
 
 import paho.mqtt.client as mqtt
 # 导入时间模块：用于时间戳
 import time
 # 导入JSON模块：处理MQTT消息的序列化/反序列化
 import json
-# 导入日志模块：记录插件运行日志（便于调试）
-import logging
+# 导入异步支持
+import asyncio
 # 导入类型注解：提升代码可读性和类型检查
 from typing import Optional, Dict, Any
-
-# 配置日志器：指定插件专属日志名称，便于日志过滤
-logger = logging.getLogger("astrbot_plugin_iot")
 
 # ===================== 插件核心类 =====================
 # 插件主类：必须继承AstrBot的Star基类
@@ -43,7 +40,6 @@ class CloudIoTSync(Star):
         
         # 注册插件指令：初始化时自动注册所有/iot相关指令
         self._register_commands()
-        self._setup_logger()
     
     # ===================== 指令注册 =====================
     def _register_commands(self):
@@ -52,7 +48,7 @@ class CloudIoTSync(Star):
         # 指令1：连接 IoT平台
         @register_command(
             command_name="iot_connect",  # 指令唯一标识（内部使用）
-            cmd="/iot connect",  # 用户触发指令（群/私聊发送该内容）
+            cmd="/iot_connect",  # 用户触发指令（群/私聊发送该内容）
             desc="连接 IoT平台\n用法：/iot connect",  # 指令描述（/plugin info查看）
             message_types=[MessageType.GROUP_MESSAGE, MessageType.FRIEND_MESSAGE]  # 支持的消息类型
         )
@@ -66,9 +62,16 @@ class CloudIoTSync(Star):
             try:
                 # 初始化MQTT客户端（配置主题、认证、回调等）
                 self._init_mqtt_client()
-                # 建立MQTT连接
-                self._connect()
-                # 回复用户：连接成功（返回服务器地址和端口）
+                # 建立MQTT连接 - 使用线程池避免阻塞事件循环
+                await asyncio.to_thread(self._connect)
+                # 等待连接确认（最多等待5秒）
+                for _ in range(50):
+                    if self.connected:
+                        break
+                    await asyncio.sleep(0.1)
+                else:
+                    raise Exception("连接超时：未收到连接确认")
+                # 连接确认后发送设备上线消息
                 self.send_device_online()
                 yield event.plain_result(
                     f" (＾▽＾) 成功连接到 IoT平台\n( ﾟ∀ﾟ) 服务器：{self.cfg('hostname')}:{self.cfg('port')}"
@@ -81,20 +84,20 @@ class CloudIoTSync(Star):
         # 指令2：断开 IoT平台连接
         @register_command(
             command_name="iot_disconnect",
-            cmd="/iot disconnect",
+            cmd="/iot_disconnect",
             desc="断开 IoT平台连接\n用法：/iot disconnect",
             message_types=[MessageType.GROUP_MESSAGE, MessageType.FRIEND_MESSAGE]
         )
         async def disconnect_iot(self, event: AstrMessageEvent):
             """处理/iot disconnect指令：断开MQTT连接"""
             # 前置检查：未连接则直接返回提示
-            if not self.connected:
+            if not self.connected and self.client is None:
                 yield event.plain_result("(×_×) 尚未连接到 IoT平台")
                 return
             
             try:
-                # 执行断开连接逻辑
-                self._disconnect()
+                # 执行断开连接逻辑 - 使用线程池避免阻塞事件循环
+                await asyncio.to_thread(self._disconnect)
                 # 回复用户：断开成功
                 yield event.plain_result(" (＾▽＾) 已断开与 IoT平台的连接")
             except Exception as e:
@@ -104,23 +107,24 @@ class CloudIoTSync(Star):
         # 指令3：手动上报设备属性
         @register_command(
             command_name="iot_report",
-            cmd="/iot report",
-            desc="手动上报设备属性\n用法：/iot report <属性类型> <值>\n示例：/iot report temperature 25",
+            cmd="/iot_report",
+            desc="手动上报设备属性\n用法：/iot report <属性类型> <值>\n示例：/iot_report temperature 25",
             message_types=[MessageType.GROUP_MESSAGE, MessageType.FRIEND_MESSAGE]
         )
         async def report_property(self, event: AstrMessageEvent):
             """处理/iot report指令：手动上报指定类型的设备属性"""
             if not self.connected:
-                yield event.plain_result("(×_×) 尚未连接到 IoT平台，请先执行 /iot connect")
+                yield event.plain_result("(×_×) 尚未连接到 IoT平台，请先执行 /iot_connect")
                 return
             
             # 直接从event获取消息内容
             message_parts = event.message_str.split()
-            if len(message_parts) < 2:  # 检查参数数量
+            if len(message_parts) < 2:  # 检查参数数量：/iot_report <属性类型> <值>
                 yield event.plain_result("(×_×) 参数错误！\n正确用法：/iot report <属性类型> <值>\n示例：/iot_report temperature 25")
                 return
             
             # 提取参数：属性类型（小写）、属性值
+            # message_parts[0]="/iot_report", message_parts[1]=属性类型
             prop_type = message_parts[1].lower()
             value = message_parts[2] if len(message_parts) > 2 else ""
             
@@ -129,7 +133,7 @@ class CloudIoTSync(Star):
                 return
             
             try:
-                self.send_device_property("Custom", {prop_type: value})
+                await asyncio.to_thread(self.send_device_property, "Custom", {prop_type: value})
                 
                 yield event.plain_result(f" (＾▽＾) 已上报属性\n(⊙_⊙) 类型：{prop_type}\n(⇀‸↼) 值：{value}")
             except Exception as e:
@@ -139,23 +143,24 @@ class CloudIoTSync(Star):
         # 指令4：发送设备事件到平台
         @register_command(
             command_name="iot_event",
-            cmd="/iot event",
-            desc="发送设备事件到平台\n用法：/iot event <事件类型> <消息>\n示例：/iot event alert 温度过高",
+            cmd="/iot_event",
+            desc="发送设备事件到平台\n用法：/iot_event <事件类型> <消息>\n示例：/iot_event alert 温度过高",
             message_types=[MessageType.GROUP_MESSAGE, MessageType.FRIEND_MESSAGE]
         )
         async def send_event(self, event: AstrMessageEvent):
-            """处理/iot event指令：发送自定义事件到华为云IoT平台"""
+            """处理/iot_event指令：发送自定义事件到华为云IoT平台"""
             if not self.connected:
-                yield event.plain_result("(×_×) 尚未连接到华为云IoT平台，请先执行 /iot connect")
+                yield event.plain_result("(×_×) 尚未连接到华为云IoT平台，请先执行 /iot_connect")
                 return
             
             # 直接从event获取消息内容
-            message_parts = event.message_str.split(maxsplit=3)  # 限制分割次数
+            message_parts = event.message_str.split(maxsplit=2)  # 限制分割次数
             if len(message_parts) < 2:
-                yield event.plain_result("(×_×) 参数错误！\n正确用法：/iot event <事件类型> <消息>\n示例：/iot event alert 温度过高")
+                yield event.plain_result("(×_×) 参数错误！\n正确用法：/iot_event <事件类型> <消息>\n示例：/iot_event alert 温度过高")
                 return
             
             # 提取参数
+            # message_parts[0]="/iot_event", message_parts[1]=事件类型
             event_type = message_parts[1]
             event_msg = message_parts[2] if len(message_parts) > 2 else ""
             
@@ -164,7 +169,8 @@ class CloudIoTSync(Star):
                 return
             
             try:
-                self.send_device_event(
+                await asyncio.to_thread(
+                    self.send_device_event,
                     event_type, 
                     {"message": event_msg}
                 )
@@ -176,8 +182,8 @@ class CloudIoTSync(Star):
         # 指令5：查看MQTT连接状态
         @register_command(
             command_name="iot_status",
-            cmd="/iot status",
-            desc="查看 IoT平台连接状态\n用法：/iot status",
+            cmd="/iot_status",
+            desc="查看 IoT平台连接状态\n用法：/iot_status",
             message_types=[MessageType.GROUP_MESSAGE, MessageType.FRIEND_MESSAGE]
         )
         async def check_status(self, event: AstrMessageEvent):
@@ -195,9 +201,9 @@ class CloudIoTSync(Star):
         
         # 指令6：自定义Topic消息发送（透传）
         @register_command(
-            command_name="iot_publish",
-            cmd="/iot pub",
-            desc="发送普通MQTT消息（自定义Topic）\n用法：/iot pub <topic> <消息内容>\n示例：/iot pub test/topic hello",
+            command_name="iot_pub",
+            cmd="/iot_pub",
+            desc="发送普通MQTT消息（自定义Topic）\n用法：/iot_pub <topic> <消息内容>\n示例：/iot_pub test/topic hello",
             message_types=[MessageType.GROUP_MESSAGE, MessageType.FRIEND_MESSAGE]
         )
         async def publish_raw_message(self, event: AstrMessageEvent):
@@ -208,11 +214,12 @@ class CloudIoTSync(Star):
                 return
 
             # 拆分指令（最多拆3段，保留完整消息）
+            # parts[0]="/iot_pub",parts[1]=topic, parts[2]=消息内容
             parts = event.message_str.split(maxsplit=2)
 
-            if len(parts) < 3:
+            if len(parts) < 2:
                 yield event.plain_result(
-                    "(×_×) 参数错误！\n用法：/iot pub <topic> <消息内容>\n示例：/iot pub test/topic hello"
+                    "(×_×) 参数错误！\n用法：/iot pub <topic> <消息内容>\n示例：/iot pub_test/topic hello"
                 )
                 return
 
@@ -220,7 +227,7 @@ class CloudIoTSync(Star):
             message = parts[2]
 
             try:
-                self.send_raw_message(topic, message)
+                await asyncio.to_thread(self.send_raw_message, topic, message)
                 yield event.plain_result(
                     f" (＾▽＾) 消息已发送\n( ﾟ∀ﾟ) Topic：{topic}\n(´･ω･`)内容：{message}"
                 )
@@ -290,8 +297,11 @@ class CloudIoTSync(Star):
         # 如果是JSON字符串，尝试格式化（可选）
         try:
             payload = json.dumps(json.loads(message))
-        except:
+        except json.JSONDecodeError:
             payload = message  # 普通字符串直接发送
+        except Exception as e:
+            logger.error(f"处理消息内容时出错: {e}", exc_info=True)
+            payload = message  #  fallback到原始消息
 
         self.client.publish(topic, payload, qos=1)
         logger.info(f"发送普通消息 -> Topic: {topic}, Payload: {payload}")
@@ -352,8 +362,22 @@ class CloudIoTSync(Star):
             logger.info("处理平台下发命令")
             # 提取命令ID（用于回复平台）
             command_id = payload.get("command_id", "unknown")
-            # 构造命令响应主题（替换request为response，带上命令ID）
-            response_topic = topic.replace("/request/+", f"/response/{command_id}")
+            # 构造命令响应主题：将request替换为response，并保留命令ID
+            # 实际topic格式通常为：$oc/devices/{device_id}/sys/commands/request/{request_id}
+            response_topic = topic.replace("/request/", f"/response/{command_id}/")
+            # 备用方案：如果上面替换不生效，使用更通用的方式
+            if response_topic == topic:
+                # 从topic中提取基础路径并构造响应主题
+                topic_parts = topic.split("/")
+                # 查找"request"的位置
+                for i, part in enumerate(topic_parts):
+                    if part == "request":
+                        topic_parts[i] = "response"
+                        # 在response后插入command_id
+                        if i + 1 < len(topic_parts):
+                            topic_parts[i + 1] = command_id
+                        break
+                response_topic = "/".join(topic_parts)
             
             # 构建命令响应数据（按 格式）
             response_data = {
@@ -403,14 +427,21 @@ class CloudIoTSync(Star):
     
     def _disconnect(self):
         """断开MQTT连接：停止网络循环并清理资源"""
-        # 前置检查：客户端已初始化且已连接
-        if self.client and self.connected:
-            # 停止MQTT网络循环
-            self.client.loop_stop()
-            # 断开MQTT连接
-            self.client.disconnect()
+        # 确保网络循环和连接都被清理，即使连接未完全建立
+        if self.client:
+            try:
+                # 停止MQTT网络循环（必须先停止，否则可能残留线程）
+                self.client.loop_stop()
+            except Exception as e:
+                logger.warning(f"停止MQTT循环时出现警告: {e}")
+            try:
+                # 断开MQTT连接
+                self.client.disconnect()
+            except Exception as e:
+                logger.warning(f"断开MQTT连接时出现警告: {e}")
             # 更新连接状态
             self.connected = False
+            self.client = None
     
     # ===================== 消息发布（设备→平台） =====================
     def send_device_online(self):
@@ -479,39 +510,13 @@ class CloudIoTSync(Star):
         self.client.publish(self.topics["event_up"], json.dumps(event_message), qos=1)
         logger.info(f"发送设备事件 - 类型：{event_type}，数据：{event_data}")
     
-    # 日志用来检测mqtt连接情况的
-    def _setup_logger(self):
-        if logger.handlers:
-            return  # 防止重复添加 handler
 
-        logger.setLevel(logging.INFO)
-
-        # 日志格式
-        formatter = logging.Formatter(
-            "[%(asctime)s] [%(levelname)s] %(name)s: %(message)s"
-        )
-
-        #  (＾▽＾) 文件日志（自动轮转，防止无限变大）
-        import logging.handlers
-        file_handler = logging.handlers.RotatingFileHandler(
-            "iot_plugin.log",   # 日志文件名
-            maxBytes=5 * 1024 * 1024,  # 5MB
-            backupCount=3,  # 保留3个历史文件
-            encoding="utf-8"
-        )
-        file_handler.setFormatter(formatter)
-
-        #  (＾▽＾) 控制台日志（可选）
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-
-        logger.addHandler(file_handler)
-        logger.addHandler(console_handler)
     
     # ===================== 插件生命周期 =====================
     async def terminate(self):
         """插件卸载时的资源清理：断开连接（AstrBot v4.x要求）"""
-        self._disconnect()  # 断开MQTT连接
+        if self.client:
+            await asyncio.to_thread(self._disconnect)  # 断开MQTT连接
         logger.info(" IoT插件已卸载，资源已清理")
     
     async def handle(self, ctx: Context):
