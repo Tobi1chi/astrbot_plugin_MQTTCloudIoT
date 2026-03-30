@@ -83,22 +83,22 @@ pip install paho-mqtt>=2.0.0
 
 | 指令 | 用法 | 示例 | 说明 |
 |------|------|------|------|
-| `/iot connect` | `/iot connect` | `/iot connect` | 连接到 IoT 平台 |
-| `/iot disconnect` | `/iot disconnect` | `/iot disconnect` | 断开与 IoT 平台的连接 |
-| `/iot status` | `/iot status` | `/iot status` | 查看当前 MQTT 连接状态 |
+| `/iot_connect` | `/iot_connect` | `/iot_connect` | 连接到 IoT 平台 |
+| `/iot_disconnect` | `/iot_disconnect` | `/iot_disconnect` | 断开与 IoT 平台的连接 |
+| `/iot_status` | `/iot_status` | `/iot_status` | 查看当前 MQTT 连接状态 |
 
 ### 📊 数据上报
 
 | 指令 | 用法 | 示例 | 说明 |
 |------|------|------|------|
-| `/iot report` | `/iot report <属性类型> <值>` | `/iot report temperature 25` | 上报设备属性 |
-| `/iot event` | `/iot event <事件类型> <消息>` | `/iot event alert 温度过高` | 发送设备事件 |
+| `/iot_report` | `/iot_report <属性类型> <值>` | `/iot_report temperature 25` | 上报设备属性 |
+| `/iot_event` | `/iot_event <事件类型> <消息>` | `/iot_event alert 温度过高` | 发送设备事件 |
 
 ### 📝 自定义消息
 
 | 指令 | 用法 | 示例 | 说明 |
 |------|------|------|------|
-| `/iot pub` | `/iot pub <topic> <消息>` | `/iot pub astrbot/status 机器人在线` | 发送自定义 Topic 消息 |
+| `/iot_pub` | `/iot_pub <topic> <消息>` | `/iot_pub astrbot/status 机器人在线` | 发送自定义 Topic 消息 |
 
 ---
 
@@ -114,7 +114,7 @@ pip install paho-mqtt>=2.0.0
 
 ### 示例 2：上报温度数据
 ```
-用户：/iot report temperature 26
+用户：/iot_report temperature 26
 
 机器人：(＾▽＾) 已上报属性
         (⊙_⊙) 类型：temperature
@@ -123,7 +123,7 @@ pip install paho-mqtt>=2.0.0
 
 ### 示例 3：发送告警事件
 ```
-用户：/iot event alert 检测到异常登录
+用户：/iot_event alert 检测到异常登录
 
 机器人：(＾▽＾) 已发送事件
         ( ͡° ͜ʖ ͡°) 类型：alert
@@ -132,7 +132,7 @@ pip install paho-mqtt>=2.0.0
 
 ### 示例 4：查看连接状态
 ```
-用户：/iot status
+用户：/iot_status
 
 机器人：( ﾟ∀ﾟ) IoT平台状态
          (＾▽＾) 已连接
@@ -215,7 +215,7 @@ pip install paho-mqtt>=2.0.0
 > A: 认证失败，请检查 `Client ID`、`Username`、`Password` 是否与 IoT 平台配置一致。
 
 **Q: 消息发送失败？**
-> A: 请先检查连接状态 `/iot status`，确保已成功连接到 IoT 平台。
+> A: 请先检查连接状态 `/iot_status`，确保已成功连接到 IoT 平台。
 
 **Q: 无法接收平台指令？**
 > A: 请检查 Topic 订阅是否成功，查看日志文件确认。
