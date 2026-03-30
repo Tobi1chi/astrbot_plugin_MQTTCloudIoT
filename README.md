@@ -272,7 +272,7 @@ astrbot_plugin_MQTTCloudIoT/
 
 ## 📄 许可证
 
-本插件采用 [MIT](LICENSE) 许可证。
+本插件采用 [AGPL-3.0](LICENSE) 许可证。
 
 ---
 
